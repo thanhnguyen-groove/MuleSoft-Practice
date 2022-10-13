@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:vm="http://www.mulesoft.org/schema/mule/vm" xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/java http://www.mulesoft.org/schema/mule/java/current/mule-java.xsd
+http://www.mulesoft.org/schema/mule/vm http://www.mulesoft.org/schema/mule/vm/current/mule-vm.xsd">
+	<db:config name="Employee_Database_Config" doc:name="Database Config" doc:id="717b1caa-5d18-4dd3-97eb-cde7b99d3f68" >
+		<db:my-sql-connection host="${mysql.host}" port="${mysql.port}" user="${mysql.user}" password="22824497" database="${mysql.database}" />
+	</db:config>
+	<vm:config name="VM_Config" doc:name="VM Config" doc:id="d5494de9-26ac-44c9-85a1-7972a9749cab" >
+		<vm:queues >
+			<vm:queue queueName="TEST" />
+		</vm:queues>
+	</vm:config>
+	<flow name="getAllEmployee" doc:id="f24629da-624d-4fd1-9fa5-6df8218e61d3" >
+		<db:select doc:name="Select" doc:id="b3e2bc1c-b4c7-4638-b8e7-2d4f829db212" config-ref="Employee_Database_Config">
+			<db:sql ><![CDATA[select * from employee]]></db:sql>
+		</db:select>
+		<flow-ref doc:name="Flow Reference" doc:id="afb70695-989d-46c7-96eb-73ae099b4f0b" name="SubFlow"/>
+		<ee:transform doc:name="Transform Message" doc:id="80d51538-2938-409a-af9f-25ade8d18929" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload map (result)->{
+	id: result.id,
+	firstName: result.first_name default "",
+	lastName: result.last_name default "",
+	email: result.email default "" 
+	}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+	<sub-flow name="SubFlow" doc:id="ddebaf8b-adb9-4bf2-8452-a72732c3cae8" >
+		<logger level="INFO" doc:name="Logger" doc:id="13f5884a-038e-4dce-85c6-d27ad789ec4c" message="This is SubFlow"/>
+		<vm:publish doc:name="Publish" doc:id="c5c459bb-907e-43b3-ba29-de5dc7a36a57" config-ref="VM_Config" sendCorrelationId="ALWAYS" correlationId="#[correlationId]" queueName="TEST"/>
+	</sub-flow>
+	<flow name="MessageQueue" doc:id="7e9de1a7-f37b-4ea8-85ed-ab3de4280d91" >
+		<vm:listener doc:name="Listener" doc:id="edf71485-7e2c-4ffd-a40d-15f27c24da7e" config-ref="VM_Config" queueName="TEST"/>
+		<logger level="INFO" doc:name="Logger" doc:id="8361a11c-1e0b-46a3-a2f6-f2468a07fcf5" message="#[payload]"/>
+	</flow>
+	<flow name="getEmployeeById" doc:id="265cbb4a-5acd-4d66-8852-aabcaee75202" >
+		<db:select doc:name="Select" doc:id="87db9d20-efc4-497d-a63e-7e2963431025" config-ref="Employee_Database_Config">
+			<db:sql ><![CDATA[select * from employee where ID = :id]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{'id': vars.employeeId}]]]></db:input-parameters>
+		</db:select>
+		<logger level="INFO" doc:name="Logger" doc:id="977a916b-787f-4609-92c7-88765483cd3a" message="#[payload]"/>
+		<ee:transform doc:name="Transform Message" doc:id="16120881-73f6-4d45-8c11-e0de422b8a4e" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload map (result)->{
+	id: result.id,
+	firstName: result.first_name default "",
+	lastName: result.last_name default "",
+	email: result.email default ""
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+	<flow name="createEmployee" doc:id="41415380-75a4-4eb4-b284-91c1d3d98f78" >
+		<db:insert doc:name="Insert" doc:id="674c0c9d-a7b8-4187-8a83-e41d3ee4a553" config-ref="Employee_Database_Config">
+			<db:sql ><![CDATA[Insert into employee(first_name,last_name,email) values (:firstName,:lastName,:email)]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+	"firstName": payload.firstName,
+	"lastName": payload.lastName,
+	"email": payload.email	}]]]></db:input-parameters>
+		</db:insert>
+		<ee:transform doc:name="Transform Message" doc:id="1587bc84-2d98-4786-9363-487f9285c81b" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message: "Data Added"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+	<flow name="updateEmployee" doc:id="27dab93b-56cb-4df1-be7b-0e407d7f1818" >
+		<db:update doc:name="Update" doc:id="5356ded3-f2cf-4912-9c5f-dfb4e8fffae4" config-ref="Employee_Database_Config">
+			<db:sql ><![CDATA[update employee set first_name = :firstName, last_name = :lastName, email= :email where id = :id;]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+	"id": vars.employeeId,
+	"firstName": payload.firstName,
+	"lastName": payload.lastName,
+	"email": payload.email	}]]]></db:input-parameters>
+		</db:update>
+		<set-payload value='"OKELAH"' doc:name="Set Payload" doc:id="3e531b4d-940b-42d8-bd9a-4460ac9cdcd9" />
+	</flow>
+</mule>
